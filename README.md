@@ -14,23 +14,24 @@ misses them on the official source-built `php` images.
 Fixed in **8.5.12 / 8.4.27 / 8.3.36 / 8.2.35** (released 21 Oct 2026). Every
 version at or below the last-vulnerable release on each branch is affected.
 
-## The images
+## Repo layout
 
-For each branch: the **last vulnerable** release and the **fixed** release. Each
-`images/<version>/Dockerfile` is the build recipe; all are amd64 so the Checkmarx
-analyzer resolves them, and all install PHP as an **OS package** (that's what
-Container Security reads).
+- **`images/<version>/Dockerfile`** — one-line `FROM ghcr.io/...:<version>` **scan
+  targets**. A CxOne project / GUI scan resolves these and scans the published
+  images. This is what you point Checkmarx at.
+- **`build/<version>/Dockerfile`** — the **build recipes** that produce those
+  images (for reproducing / rebuilding them). Not meant to be scanned directly.
 
 | Branch | Vulnerable (both CVEs) | Fixed (clean) |
 |--------|------------------------|---------------|
-| 8.2 | `images/8.2.34` | `images/8.2.35` |
-| 8.3 | `images/8.3.35` | `images/8.3.36` |
-| 8.4 | `images/8.4.26` | `images/8.4.27` |
-| 8.5 | `images/8.5.11` | `images/8.5.12` |
+| 8.2 | `8.2.34` | `8.2.35` |
+| 8.3 | `8.3.35` | `8.3.36` |
+| 8.4 | `8.4.26` | `8.4.27` |
+| 8.5 | `8.5.11` | `8.5.12` |
 
-Prebuilt and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
+All amd64 and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
 
-### How each is built
+### How each image is built (`build/`)
 
 - **Fixed (8.2.35 / 8.3.36 / 8.5.12):** current Sury repo (`deb.sury.org/php`).
 - **8.4.27 (fixed):** current Debian trixie.
@@ -38,26 +39,16 @@ Prebuilt and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
 - **8.2.34 / 8.3.35 / 8.5.11 (vulnerable):** no amd64 build of these old patch
   releases is published anymore, so the real Sury packages for those exact versions
   are repackaged to amd64 and marked `installed`. The package DB lists the exact
-  vulnerable `php8.x` (with `Source: php8.x`, which Checkmarx matches against the
-  Debian CVE feed). **Detection-only** images — the binaries are arm64 and won't
-  run; they exist to be scanned.
+  vulnerable `php8.x` (`Source: php8.x`, which Checkmarx matches against the Debian
+  CVE feed). Detection-only images — the binaries are arm64 and won't run.
 
 ## How to scan
 
-> **Important:** these Dockerfiles are **build recipes**. A plain repo scan would
-> resolve the `FROM debian:trixie` base and *not* execute the `RUN` layers, so it
-> would not see the PHP packages. Scan the **built/pushed images by reference**.
+**Repo / GUI** — enable Container Security on the `php2shell-cx` project and scan.
+It resolves the `FROM` references in `images/` and scans all eight published
+images.
 
-Build + push (or just use the already-published tags):
-
-```bash
-for v in 8.2.34 8.2.35 8.3.35 8.3.36 8.4.26 8.4.27 8.5.11 8.5.12; do
-  docker build -f images/$v/Dockerfile -t ghcr.io/cxsmtp/php2shell-distro:$v .
-  docker push ghcr.io/cxsmtp/php2shell-distro:$v
-done
-```
-
-Scan them by reference:
+**CLI** — scan the references directly:
 
 ```bash
 cx scan create --project-name "php2shell-cx" --branch main -s . \
@@ -67,6 +58,8 @@ ghcr.io/cxsmtp/php2shell-distro:8.3.35,ghcr.io/cxsmtp/php2shell-distro:8.3.36,\
 ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27,\
 ghcr.io/cxsmtp/php2shell-distro:8.5.11,ghcr.io/cxsmtp/php2shell-distro:8.5.12"
 ```
+
+To rebuild an image: `docker build -f build/<version>/Dockerfile -t ghcr.io/cxsmtp/php2shell-distro:<version> . && docker push ...`
 
 Expected: the four vulnerable images fire **CVE-2026-109618** and
 **CVE-2026-109619** (Critical) on the `php8.x` package; the four fixed images are
