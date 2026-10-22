@@ -67,3 +67,51 @@ RUN set -eux; \
 COPY app/ /var/www/html/
 EXPOSE 80
 ```
+
+## 8.3-fixed — FIXED (Ubuntu 24.04, native → php8.3 8.3.6-0ubuntu0.24.04.13)
+```dockerfile
+FROM ubuntu:24.04
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends php8.3 libapache2-mod-php8.3 \
+ && rm -rf /var/lib/apt/lists/*
+COPY app/ /var/www/html/
+EXPOSE 80
+```
+
+## 8.3-vuln — VULNERABLE (Ubuntu 24.04, apt pinned to 20 Oct 2026 snapshot → php8.3 8.3.6-0ubuntu0.24.04.12)
+```dockerfile
+FROM ubuntu:24.04
+RUN set -eux; \
+    printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/10snapshot; \
+    rm -f /etc/apt/sources.list /etc/apt/sources.list.d/*; \
+    printf 'Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/20261020T000000Z\nSuites: noble noble-updates noble-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' > /etc/apt/sources.list.d/ubuntu.sources; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends php8.3 libapache2-mod-php8.3; \
+    rm -rf /var/lib/apt/lists/*
+COPY app/ /var/www/html/
+EXPOSE 80
+```
+
+## 8.5-fixed — FIXED (Ubuntu 26.04, native → php8.5 8.5.4-0ubuntu1.5)
+```dockerfile
+FROM ubuntu:26.04
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends php8.5 libapache2-mod-php8.5 \
+ && rm -rf /var/lib/apt/lists/*
+COPY app/ /var/www/html/
+EXPOSE 80
+```
+
+## 8.5-vuln — VULNERABLE (Ubuntu 26.04, apt pinned to 20 Oct 2026 snapshot → php8.5 8.5.4-0ubuntu1.4)
+```dockerfile
+FROM ubuntu:26.04
+RUN set -eux; \
+    printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/10snapshot; \
+    rm -f /etc/apt/sources.list /etc/apt/sources.list.d/*; \
+    printf 'Types: deb\nURIs: https://snapshot.ubuntu.com/ubuntu/20261020T000000Z\nSuites: resolute resolute-updates resolute-security\nComponents: main universe\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n' > /etc/apt/sources.list.d/ubuntu.sources; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends php8.5 libapache2-mod-php8.5; \
+    rm -rf /var/lib/apt/lists/*
+COPY app/ /var/www/html/
+EXPOSE 80
+```
