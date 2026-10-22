@@ -94,3 +94,20 @@ raised the count to 3,875 findings — but still **zero** findings attributed to
 `php` package and still **neither** PHP2Shell CVE. The apt-installed `php8.4`
 only exists after a build, which a repo scan never performs. Hence the
 build + push + scan-by-reference workflow in `distro/BUILD_AND_SCAN.md`.
+
+### Working detection (scan `e79158c8`, 22 Oct 2026)
+
+The distro image was built with podman (php8.4 **8.4.26-1~deb13u1**, pre-patch,
+Debian snapshot `20261020T213255Z`), pushed to
+`ghcr.io/cxsmtp/php2shell-distro:prepatch` (public), and scanned via
+`distro-scan/Dockerfile`. CxOne pulled it and **both CVEs fired:**
+
+| CVE | Severity | Package | Version |
+|-----|----------|---------|---------|
+| CVE-2026-109618 | Critical (9.2, CWE-416) | `php8.4` | 8.4.26-1~deb13u1 |
+| CVE-2026-109619 | Critical (9.2, CWE-416) | `php8.4` | 8.4.26-1~deb13u1 |
+
+**Bottom line for the demo:** the official source-built `php` images surface
+**neither** CVE (PHP runtime not fingerprinted), while the distro-packaged
+`php8.4` image surfaces **both** — Checkmarx's feed does map these CVEs to the
+Debian `php8.4` package. Detection works only when PHP is an OS package.
