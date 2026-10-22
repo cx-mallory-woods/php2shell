@@ -87,3 +87,10 @@ installing PHP from the OS package manager. See **`distro/Dockerfile`** and
 registry**, then scanned by reference, because a repo scan does not execute
 `RUN` layers. Confirm with the Checkmarx content team whether the feed maps the
 two CVEs to the Debian `php8.4` package before relying on it in a customer demo.
+
+**Empirically confirmed (scan `c819e8a5`, 22 Oct 2026):** re-scanning the repo
+after adding `distro/Dockerfile` resolved its `FROM debian:trixie` base and
+raised the count to 3,875 findings — but still **zero** findings attributed to a
+`php` package and still **neither** PHP2Shell CVE. The apt-installed `php8.4`
+only exists after a build, which a repo scan never performs. Hence the
+build + push + scan-by-reference workflow in `distro/BUILD_AND_SCAN.md`.
