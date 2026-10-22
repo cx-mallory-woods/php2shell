@@ -1,46 +1,75 @@
 # php2shell-cx — Container Security detection demo
 
-Shows that **Checkmarx One Container Security** flags the PHP2Shell CVEs only
-when PHP is installed as an **OS package** (distro build), and misses them on the
-official source-built `php` images.
+Demonstrates that **Checkmarx One Container Security** flags the PHP2Shell RCEs on
+**distro-packaged** PHP — across every affected branch, vulnerable vs fixed — and
+misses them on the official source-built `php` images.
 
-> **No Dockerfiles live in this repo on purpose.** A repo scan resolves `FROM`
-> base images and pulls in hundreds of unrelated OS-package findings. To keep a
-> scan clean, the demo images are pre-built and pushed to GHCR, and scanned
-> **by image reference** (not from a Dockerfile here). Build recipe:
-> [`distro/BUILD_AND_SCAN.md`](distro/BUILD_AND_SCAN.md).
+## The vulnerabilities (PHP2Shell)
 
-## The vulnerabilities
+| CVE | Type | Severity |
+|-----|------|----------|
+| CVE-2026-109618 | Unauthenticated RCE — out-of-memory corruption | Critical (CVSS 9.2) |
+| CVE-2026-109619 | Unauthenticated RCE — stale global request state | Critical (CVSS 9.2) |
 
-| CVE | Type | Severity | Fixed in |
-|-----|------|----------|----------|
-| CVE-2026-109618 | Unauth RCE — out-of-memory corruption | Critical 9.2 | 8.5.12 / 8.4.27 / 8.3.36 / 8.2.35 |
-| CVE-2026-109619 | Unauth RCE — stale global request state | Critical 9.2 | 8.5.12 / 8.4.27 / 8.3.36 / 8.2.35 |
+Fixed in **8.5.12 / 8.4.27 / 8.3.36 / 8.2.35** (released 21 Oct 2026). Every
+version at or below the last-vulnerable release on each branch is affected.
 
 ## Demo images (GHCR, public)
 
-Scan these by reference (e.g. `cx scan create --scan-types container-security
---container-images <ref>`):
+For each branch: the **last vulnerable** release and the **fixed** release. All
+are amd64 so the Checkmarx analyzer resolves them.
 
-| Image | PHP | Result |
-|-------|-----|--------|
-| `ghcr.io/cxsmtp/php2shell-distro:vuln-modphp` | php8.4 **8.4.26** (apache/mod_php) | **Vulnerable** — both CVEs |
-| `ghcr.io/cxsmtp/php2shell-distro:vuln-fpm` | php8.4-fpm **8.4.26** | **Vulnerable** — both CVEs |
-| `ghcr.io/cxsmtp/php2shell-distro:fixed` | php8.4 **8.4.27** | **Clean** for both CVEs |
+| Branch | Vulnerable (expect both CVEs) | Fixed (expect clean) |
+|--------|-------------------------------|----------------------|
+| 8.2 | `ghcr.io/cxsmtp/php2shell-distro:8.2.34` | `ghcr.io/cxsmtp/php2shell-distro:8.2.35` |
+| 8.3 | `ghcr.io/cxsmtp/php2shell-distro:8.3.35` | `ghcr.io/cxsmtp/php2shell-distro:8.3.36` |
+| 8.4 | `ghcr.io/cxsmtp/php2shell-distro:8.4.26` | `ghcr.io/cxsmtp/php2shell-distro:8.4.27` |
+| 8.5 | `ghcr.io/cxsmtp/php2shell-distro:8.5.11` | `ghcr.io/cxsmtp/php2shell-distro:8.5.12` |
 
-(`:prepatch` is an earlier alias of `:vuln-modphp`.) All are Debian-trixie based;
-the vulnerable ones pin apt to the 20 Oct 2026 snapshot (`20261020T213255Z`) to
-get the pre-patch `php8.4` 8.4.26-1~deb13u1.
+## How to scan
 
-## The finding (confirmed by scan `e79158c8`)
+**Repo / GUI** — the repo carries one `FROM` Dockerfile per image under
+`images/<version>/`, so a CxOne project scan with Container Security enabled
+resolves and scans all eight by reference.
 
-- **Distro-packaged PHP** → both CVEs fire, Critical, attributed to the `php8.4`
-  package. ✅
-- **Official source-built `php` images** (`php:8.3.35-apache`, `php:8.3.36`,
-  `php:8.4.26-fpm`) → **neither CVE** appears. Container Security scores those
-  images only on their Debian OS packages and does not fingerprint the
-  compiled-from-source PHP runtime. Its remediation even rates the vulnerable
-  `php:8.3.35-alpine` as "0 vulnerabilities."
+**CLI** — scan the references directly:
+
+```bash
+cx scan create --project-name "php2shell-cx" --branch main -s . \
+  --scan-types container-security \
+  --container-images "ghcr.io/cxsmtp/php2shell-distro:8.2.34,ghcr.io/cxsmtp/php2shell-distro:8.2.35,\
+ghcr.io/cxsmtp/php2shell-distro:8.3.35,ghcr.io/cxsmtp/php2shell-distro:8.3.36,\
+ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27,\
+ghcr.io/cxsmtp/php2shell-distro:8.5.11,ghcr.io/cxsmtp/php2shell-distro:8.5.12"
+```
+
+## How the images are built
+
+All are Debian-trixie based, PHP installed as an **OS package** (that's what
+Container Security reads). Full recipe: [`distro/BUILD_AND_SCAN.md`](distro/BUILD_AND_SCAN.md).
+
+- **Fixed (8.2.35 / 8.3.36 / 8.4.27 / 8.5.12):** installed from the current Sury
+  repo (`deb.sury.org/php`) — these are the patched releases.
+- **8.4.26 (vulnerable):** Debian trixie with apt pinned to the 20 Oct 2026
+  snapshot (`20261020T213255Z`), giving pre-patch `php8.4` 8.4.26.
+- **8.2.34 / 8.3.35 / 8.5.11 (vulnerable):** no amd64 build of these old patch
+  releases is published anymore (Sury keeps only the current/fixed amd64; Debian
+  doesn't track exact upstream patches). So the real Sury packages for those exact
+  versions are **repackaged to amd64** — the OS package database lists the exact
+  vulnerable `php8.x` at the right version (with `Source: php8.x`, which is what
+  Checkmarx matches the Debian CVE against). These are detection-only images; the
+  binaries underneath are arm64 and won't run.
+
+## The key finding
+
+- **Distro-packaged PHP** → both CVEs fire, Critical, attributed to the `php8.x`
+  package. The fixed releases come back clean. ✅ (proven on `8.4.26`, scan
+  `e79158c8`.)
+- **Official source-built `php` images** (`php:8.3.35-apache`, `php:8.4.26-fpm`,
+  …) → **neither CVE** appears. Container Security scores those only on their
+  Debian OS packages and does not fingerprint the compiled-from-source PHP
+  runtime — its remediation even rates the vulnerable `php:8.3.35-alpine` as
+  "0 vulnerabilities."
 
 **Takeaway for the team:** "SCA misses it, Container Security catches it" holds
 for distro-packaged PHP — but **not** for the official source-built images on
