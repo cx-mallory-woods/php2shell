@@ -58,8 +58,7 @@ remediation would steer a customer toward still-vulnerable versions.
 # Fixed: install from live Debian -> php8.4 8.4.27-1~deb13u1 (patched)
 #   apt-get install -y php8.4 libapache2-mod-php8.4
 ```
-Full build recipe (incl. proxy/CA specifics for a locked-down builder):
-[`distro/BUILD_AND_SCAN.md`](distro/BUILD_AND_SCAN.md).
+Full build recipes per image live in [`images/<version>/Dockerfile`](images/).
 
 ### Step 2 — Push to a registry CxOne can pull
 

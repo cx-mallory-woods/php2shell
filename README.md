@@ -14,25 +14,50 @@ misses them on the official source-built `php` images.
 Fixed in **8.5.12 / 8.4.27 / 8.3.36 / 8.2.35** (released 21 Oct 2026). Every
 version at or below the last-vulnerable release on each branch is affected.
 
-## Demo images (GHCR, public)
+## The images
 
-For each branch: the **last vulnerable** release and the **fixed** release. All
-are amd64 so the Checkmarx analyzer resolves them.
+For each branch: the **last vulnerable** release and the **fixed** release. Each
+`images/<version>/Dockerfile` is the build recipe; all are amd64 so the Checkmarx
+analyzer resolves them, and all install PHP as an **OS package** (that's what
+Container Security reads).
 
-| Branch | Vulnerable (expect both CVEs) | Fixed (expect clean) |
-|--------|-------------------------------|----------------------|
-| 8.2 | `ghcr.io/cxsmtp/php2shell-distro:8.2.34` | `ghcr.io/cxsmtp/php2shell-distro:8.2.35` |
-| 8.3 | `ghcr.io/cxsmtp/php2shell-distro:8.3.35` | `ghcr.io/cxsmtp/php2shell-distro:8.3.36` |
-| 8.4 | `ghcr.io/cxsmtp/php2shell-distro:8.4.26` | `ghcr.io/cxsmtp/php2shell-distro:8.4.27` |
-| 8.5 | `ghcr.io/cxsmtp/php2shell-distro:8.5.11` | `ghcr.io/cxsmtp/php2shell-distro:8.5.12` |
+| Branch | Vulnerable (both CVEs) | Fixed (clean) |
+|--------|------------------------|---------------|
+| 8.2 | `images/8.2.34` | `images/8.2.35` |
+| 8.3 | `images/8.3.35` | `images/8.3.36` |
+| 8.4 | `images/8.4.26` | `images/8.4.27` |
+| 8.5 | `images/8.5.11` | `images/8.5.12` |
+
+Prebuilt and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
+
+### How each is built
+
+- **Fixed (8.2.35 / 8.3.36 / 8.5.12):** current Sury repo (`deb.sury.org/php`).
+- **8.4.27 (fixed):** current Debian trixie.
+- **8.4.26 (vulnerable):** Debian trixie, apt pinned to the 20 Oct 2026 snapshot.
+- **8.2.34 / 8.3.35 / 8.5.11 (vulnerable):** no amd64 build of these old patch
+  releases is published anymore, so the real Sury packages for those exact versions
+  are repackaged to amd64 and marked `installed`. The package DB lists the exact
+  vulnerable `php8.x` (with `Source: php8.x`, which Checkmarx matches against the
+  Debian CVE feed). **Detection-only** images — the binaries are arm64 and won't
+  run; they exist to be scanned.
 
 ## How to scan
 
-**Repo / GUI** — the repo carries one `FROM` Dockerfile per image under
-`images/<version>/`, so a CxOne project scan with Container Security enabled
-resolves and scans all eight by reference.
+> **Important:** these Dockerfiles are **build recipes**. A plain repo scan would
+> resolve the `FROM debian:trixie` base and *not* execute the `RUN` layers, so it
+> would not see the PHP packages. Scan the **built/pushed images by reference**.
 
-**CLI** — scan the references directly:
+Build + push (or just use the already-published tags):
+
+```bash
+for v in 8.2.34 8.2.35 8.3.35 8.3.36 8.4.26 8.4.27 8.5.11 8.5.12; do
+  docker build -f images/$v/Dockerfile -t ghcr.io/cxsmtp/php2shell-distro:$v .
+  docker push ghcr.io/cxsmtp/php2shell-distro:$v
+done
+```
+
+Scan them by reference:
 
 ```bash
 cx scan create --project-name "php2shell-cx" --branch main -s . \
@@ -43,35 +68,20 @@ ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27,\
 ghcr.io/cxsmtp/php2shell-distro:8.5.11,ghcr.io/cxsmtp/php2shell-distro:8.5.12"
 ```
 
-## How the images are built
-
-All are Debian-trixie based, PHP installed as an **OS package** (that's what
-Container Security reads). Full recipe: [`distro/BUILD_AND_SCAN.md`](distro/BUILD_AND_SCAN.md).
-
-- **Fixed (8.2.35 / 8.3.36 / 8.4.27 / 8.5.12):** installed from the current Sury
-  repo (`deb.sury.org/php`) — these are the patched releases.
-- **8.4.26 (vulnerable):** Debian trixie with apt pinned to the 20 Oct 2026
-  snapshot (`20261020T213255Z`), giving pre-patch `php8.4` 8.4.26.
-- **8.2.34 / 8.3.35 / 8.5.11 (vulnerable):** no amd64 build of these old patch
-  releases is published anymore (Sury keeps only the current/fixed amd64; Debian
-  doesn't track exact upstream patches). So the real Sury packages for those exact
-  versions are **repackaged to amd64** — the OS package database lists the exact
-  vulnerable `php8.x` at the right version (with `Source: php8.x`, which is what
-  Checkmarx matches the Debian CVE against). These are detection-only images; the
-  binaries underneath are arm64 and won't run.
+Expected: the four vulnerable images fire **CVE-2026-109618** and
+**CVE-2026-109619** (Critical) on the `php8.x` package; the four fixed images are
+clean for them.
 
 ## The key finding
 
-- **Distro-packaged PHP** → both CVEs fire, Critical, attributed to the `php8.x`
-  package. The fixed releases come back clean. ✅ (proven on `8.4.26`, scan
-  `e79158c8`.)
-- **Official source-built `php` images** (`php:8.3.35-apache`, `php:8.4.26-fpm`,
-  …) → **neither CVE** appears. Container Security scores those only on their
-  Debian OS packages and does not fingerprint the compiled-from-source PHP
-  runtime — its remediation even rates the vulnerable `php:8.3.35-alpine` as
-  "0 vulnerabilities."
+- **Distro-packaged PHP** → both CVEs fire, Critical, on the `php8.x` package; the
+  fixed releases come back clean.
+- **Official source-built `php` images** (`php:8.3.35-apache`, `php:8.4.26-fpm`, …)
+  → **neither CVE** appears. Container Security scores those only on their Debian OS
+  packages and does not fingerprint the compiled-from-source PHP runtime — its
+  remediation even rates the vulnerable `php:8.3.35-alpine` as "0 vulnerabilities."
 
-**Takeaway for the team:** "SCA misses it, Container Security catches it" holds
-for distro-packaged PHP — but **not** for the official source-built images on
-these PHP-core CVEs. Confirm feed coverage with the Checkmarx content team before
-a customer demo.
+**Takeaway for the team:** "SCA misses it, Container Security catches it" holds for
+distro-packaged PHP — but **not** for the official source-built images on these
+PHP-core CVEs. Confirm feed coverage with the Checkmarx content team before a
+customer demo.
