@@ -58,15 +58,32 @@ base-image PHP runtime.
 - **Talking point:** SCA on the app code finds nothing — PHP is the *runtime*,
   not a declared dependency. Container Security is what catches it.
 
-## If the vulnerable images come back clean
+## Actual scan result (22 Oct 2026, CxOne container-security engine)
 
-Two likely causes, both worth confirming with the Checkmarx content team before
-demoing to a customer:
+The three official `php` images were scanned (API mode, repo scan). Outcome:
 
-1. **CVE-feed lag** — the fix shipped 21 Oct 2026; the CVEs may not be in the
-   Container Security vulnerability DB yet.
-2. **Source-built PHP** — the official `php` images compile PHP from source
-   rather than from an OS package. If detection relies on the OS package DB, a
-   source-built runtime may not be identified. (An optional distro-packaged
-   variant — e.g. Debian `php8.x` from a pre-21-Oct snapshot — gives better
-   odds, at the cost of version numbers that won't match upstream exactly.)
+- **3,807 findings** returned (186 critical / 1,172 high) — but **every** sampled
+  finding is attributed to a **Debian OS package** (`curl`, `linux` kernel, …),
+  **not** to PHP.
+- **Neither CVE-2026-109618 nor CVE-2026-109619 is present** anywhere in the
+  results (searched all 3,807 by ID).
+- CxOne's own image-remediation rates **`php:8.3.35-alpine` as "0 vulnerabilities,
+  MOST SECURE"** and suggests "upgrading" to `php:8.5.7-zts` / `8.4.22-zts-trixie`
+  — all *below* the PHP2Shell fix line (8.5.12 / 8.4.27 / 8.3.36).
+
+**Conclusion: Container Security scores these images on their Debian OS packages
+and does not fingerprint the source-built PHP runtime.** A vulnerable 8.3.35
+Alpine build could not score 0 if the PHP runtime were tracked. So on the
+official `php` images this demo cannot surface the PHP2Shell CVEs, and the
+remediation guidance would steer a customer toward still-vulnerable versions.
+(Feed lag — the CVEs are ~1 day old — likely compounds this but is not the
+primary cause.)
+
+## Getting detection to work: distro-packaged PHP
+
+The only path that gives the scanner a `php` package to match CVEs against is
+installing PHP from the OS package manager. See **`distro/Dockerfile`** and
+**`distro/BUILD_AND_SCAN.md`** — note it must be **built and pushed to a
+registry**, then scanned by reference, because a repo scan does not execute
+`RUN` layers. Confirm with the Checkmarx content team whether the feed maps the
+two CVEs to the Debian `php8.4` package before relying on it in a customer demo.
