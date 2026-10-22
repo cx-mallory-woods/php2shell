@@ -1,8 +1,8 @@
 # php2shell-cx — Container Security detection demo
 
 Demonstrates that **Checkmarx One Container Security** flags the PHP2Shell RCEs on
-**distro-packaged** PHP — across every affected branch, vulnerable vs fixed — and
-misses them on the official source-built `php` images.
+**distro-packaged** PHP — vulnerable vs fixed — and misses them on the official
+source-built `php` images.
 
 ## The vulnerabilities (PHP2Shell)
 
@@ -11,71 +11,68 @@ misses them on the official source-built `php` images.
 | CVE-2026-109618 | Unauthenticated RCE — out-of-memory corruption | Critical (CVSS 9.2) |
 | CVE-2026-109619 | Unauthenticated RCE — stale global request state | Critical (CVSS 9.2) |
 
-Fixed in **8.5.12 / 8.4.27 / 8.3.36 / 8.2.35** (released 21 Oct 2026). Every
-version at or below the last-vulnerable release on each branch is affected.
+## Why these two branches
 
-## Repo layout
+Container Security matches a container's OS packages against that **distro
+release's own CVE feed**. For these CVEs the Debian tracker lists PHP only as:
 
-- **`images/<version>/Dockerfile`** — one-line `FROM ghcr.io/...:<version>` **scan
-  targets**. A CxOne project / GUI scan resolves these and scans the published
-  images. This is what you point Checkmarx at.
-- **`BUILD.md`** — the **build recipes** that produce those images (kept as a
-  document, not as scannable `Dockerfile`s, so a repo scan does not resolve their
-  `FROM debian:trixie` base).
+- **`php8.2` in bookworm** (fixed 8.2.35)
+- **`php8.4` in trixie** (fixed 8.4.27)
 
-| Branch | Vulnerable (both CVEs) | Fixed (clean) |
-|--------|------------------------|---------------|
-| 8.2 | `8.2.34` | `8.2.35` |
-| 8.3 | `8.3.35` | `8.3.36` |
-| 8.4 | `8.4.26` | `8.4.27` |
-| 8.5 | `8.5.11` | `8.5.12` |
+`php8.3` and `php8.5` were never shipped as Debian source packages, so no Debian
+feed tracks them and Container Security cannot match them on a Debian image — so
+the demo covers the two detectable branches, each on the base release where its
+PHP is tracked.
 
-All amd64 and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
+## The images
 
-### How each image is built (see `BUILD.md`)
+| Branch | Base | Vulnerable (both CVEs) | Fixed (clean) |
+|--------|------|------------------------|---------------|
+| 8.2 | Debian bookworm | `8.2.34` | `8.2.35` |
+| 8.4 | Debian trixie | `8.4.26` | `8.4.27` |
 
-- **Fixed (8.2.35 / 8.3.36 / 8.5.12):** current Sury repo (`deb.sury.org/php`).
-- **8.4.27 (fixed):** current Debian trixie.
+Published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public). Scan targets are
+`images/<version>/Dockerfile` (one-line `FROM` refs); build recipes are in
+[`BUILD.md`](BUILD.md).
+
+### How each is built
+
+- **8.2.35 / 8.4.27 (fixed):** native current Debian (bookworm / trixie).
 - **8.4.26 (vulnerable):** Debian trixie, apt pinned to the 20 Oct 2026 snapshot.
-- **8.2.34 / 8.3.35 / 8.5.11 (vulnerable):** no amd64 build of these old patch
-  releases is published anymore, so the real Sury packages for those exact versions
-  are repackaged to amd64 and marked `installed`. The package DB lists the exact
-  vulnerable `php8.x` (`Source: php8.x`, which Checkmarx matches against the Debian
-  CVE feed). Detection-only images — the binaries are arm64 and won't run.
+- **8.2.34 (vulnerable):** no amd64 build of that exact patch is published, so the
+  real Sury `php8.2` 8.2.34 packages are repackaged to amd64 and marked
+  `installed` on a bookworm image. `8.2.34 < 8.2.35` in the bookworm feed →
+  flagged. Detection-only image (binaries are arm64, won't run).
 
 ## How to scan
 
-**Repo / GUI** — enable Container Security on the `php2shell-cx` project and scan.
-It resolves the `FROM` references in `images/` and scans all eight published
-images.
+**Repo / GUI** — enable Container Security on the `php2shell-cx` project and scan;
+it resolves the four `FROM` references in `images/`.
 
-**CLI** — scan the references directly:
+**CLI**:
 
 ```bash
 cx scan create --project-name "php2shell-cx" --branch main -s . \
   --scan-types container-security \
   --container-images "ghcr.io/cxsmtp/php2shell-distro:8.2.34,ghcr.io/cxsmtp/php2shell-distro:8.2.35,\
-ghcr.io/cxsmtp/php2shell-distro:8.3.35,ghcr.io/cxsmtp/php2shell-distro:8.3.36,\
-ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27,\
-ghcr.io/cxsmtp/php2shell-distro:8.5.11,ghcr.io/cxsmtp/php2shell-distro:8.5.12"
+ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27"
 ```
 
-To rebuild an image, use the recipe for that version in [`BUILD.md`](BUILD.md).
-
-Expected: the four vulnerable images fire **CVE-2026-109618** and
-**CVE-2026-109619** (Critical) on the `php8.x` package; the four fixed images are
-clean for them.
+Expected: `8.2.34` and `8.4.26` fire **CVE-2026-109618** + **CVE-2026-109619**
+(Critical) on the `php8.x` package; `8.2.35` and `8.4.27` are clean for them.
 
 ## The key finding
 
 - **Distro-packaged PHP** → both CVEs fire, Critical, on the `php8.x` package; the
   fixed releases come back clean.
-- **Official source-built `php` images** (`php:8.3.35-apache`, `php:8.4.26-fpm`, …)
-  → **neither CVE** appears. Container Security scores those only on their Debian OS
-  packages and does not fingerprint the compiled-from-source PHP runtime — its
-  remediation even rates the vulnerable `php:8.3.35-alpine` as "0 vulnerabilities."
+- **Official source-built `php` images** → **neither CVE** appears. Container
+  Security scores those only on their Debian OS packages and does not fingerprint
+  the compiled-from-source PHP runtime — its remediation even rates the vulnerable
+  `php:8.3.35-alpine` as "0 vulnerabilities."
+- **Feed coverage is per distro release.** Only PHP versions a distro actually
+  ships (php8.2/bookworm, php8.4/trixie) can be matched; php8.3 / php8.5 have no
+  distro feed and cannot be detected by container scanning at all.
 
 **Takeaway for the team:** "SCA misses it, Container Security catches it" holds for
-distro-packaged PHP — but **not** for the official source-built images on these
-PHP-core CVEs. Confirm feed coverage with the Checkmarx content team before a
-customer demo.
+distro-packaged PHP on a release that tracks that PHP version — but not for the
+official source-built images, and not for PHP branches no distro ships.
