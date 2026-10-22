@@ -19,7 +19,9 @@ FROM debian:trixie
 
 # Pin apt to a snapshot from before the 21 Oct 2026 PHP release so the installed
 # php8.4 is a pre-patch build (adjust the date if you want a patched control).
-ARG SNAPSHOT=20261015T000000Z
+# Verified: 20261020T213255Z installs php8.4 8.4.26-1~deb13u1 (pre-patch; the
+# Debian security update for the PHP2Shell CVEs would raise this version).
+ARG SNAPSHOT=20261020T213255Z
 RUN printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/10no-check-valid \
     && sed -i 's|http://deb.debian.org/debian|http://snapshot.debian.org/archive/debian/'"$SNAPSHOT"'|g' \
          /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
