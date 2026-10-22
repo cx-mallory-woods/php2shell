@@ -19,8 +19,9 @@ version at or below the last-vulnerable release on each branch is affected.
 - **`images/<version>/Dockerfile`** — one-line `FROM ghcr.io/...:<version>` **scan
   targets**. A CxOne project / GUI scan resolves these and scans the published
   images. This is what you point Checkmarx at.
-- **`build/<version>/Dockerfile`** — the **build recipes** that produce those
-  images (for reproducing / rebuilding them). Not meant to be scanned directly.
+- **`BUILD.md`** — the **build recipes** that produce those images (kept as a
+  document, not as scannable `Dockerfile`s, so a repo scan does not resolve their
+  `FROM debian:trixie` base).
 
 | Branch | Vulnerable (both CVEs) | Fixed (clean) |
 |--------|------------------------|---------------|
@@ -31,7 +32,7 @@ version at or below the last-vulnerable release on each branch is affected.
 
 All amd64 and published at `ghcr.io/cxsmtp/php2shell-distro:<version>` (public).
 
-### How each image is built (`build/`)
+### How each image is built (see `BUILD.md`)
 
 - **Fixed (8.2.35 / 8.3.36 / 8.5.12):** current Sury repo (`deb.sury.org/php`).
 - **8.4.27 (fixed):** current Debian trixie.
@@ -59,7 +60,7 @@ ghcr.io/cxsmtp/php2shell-distro:8.4.26,ghcr.io/cxsmtp/php2shell-distro:8.4.27,\
 ghcr.io/cxsmtp/php2shell-distro:8.5.11,ghcr.io/cxsmtp/php2shell-distro:8.5.12"
 ```
 
-To rebuild an image: `docker build -f build/<version>/Dockerfile -t ghcr.io/cxsmtp/php2shell-distro:<version> . && docker push ...`
+To rebuild an image, use the recipe for that version in [`BUILD.md`](BUILD.md).
 
 Expected: the four vulnerable images fire **CVE-2026-109618** and
 **CVE-2026-109619** (Critical) on the `php8.x` package; the four fixed images are
